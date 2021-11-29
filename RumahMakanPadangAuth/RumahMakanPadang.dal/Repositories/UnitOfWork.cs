@@ -18,7 +18,7 @@ namespace RumahMakanPadangAuth.dal.Repositories
         public IBaseRepository<Role> RoleRepository { get; }
         public IBaseRepository<UserRole> UserRoleRepository { get; }
 
-        IBaseRepository<User> IUnitOfWork.UserRepository => throw new NotImplementedException();
+        //IBaseRepository<User> IUnitOfWork.UserRepository => throw new NotImplementedException();
 
         public UnitOfWork(RumahMakanPadangAuthDbContext context)
         {

@@ -24,11 +24,17 @@ namespace RumahMakanPadangAuth.bll
             var user = await _unitOfWork.UserRepository.GetAll()
                 .Where(u => u.UserName.ToLower().Equals(context.UserName.ToLower()))
                 .Select(x => new { x.UserId, x.Password })
-                .SingleOrDefaultAsync();
+                .FirstOrDefaultAsync();
 
-            bool valid = BCrypt.Net.BCrypt.Verify(context.Password, user.Password);
+            if (context.Request.Raw["bypassPassword"] == "true")
+            {
+                context.Result = new GrantValidationResult(user.UserId.ToString(), "password");
+                return;
+            }
 
-            if (context.Request.Raw["bypassPassword"] == "true" || valid)
+            bool passwordMatch = BCrypt.Net.BCrypt.Verify(context.Password, user.Password);
+
+            if (passwordMatch)
             {
                 context.Result = new GrantValidationResult(user.UserId.ToString(), "password");
             }

@@ -26,6 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\RumahMakanPadang.dal\RumahMakanPadangAuth.dal.csproj" />
     <ProjectReference Include="..\RumahMakanPadangAuth.bll\RumahMakanPadangAuth.bll.csproj" />
+    <ProjectReference Include="..\RumahMakanPadangAuth.external\RumahMakanPadangAuth.external.csproj" />
   </ItemGroup>
 
 

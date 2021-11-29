@@ -1,9 +1,11 @@
 ﻿using AutoMapper;
+using IdentityModel.Client;
 using IdentityServer4;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using RumahMakanPadangAuth.api.Auth.DTOs;
 using RumahMakanPadangAuth.bll;
 using RumahMakanPadangAuth.dal.Models;
 using System;
@@ -88,6 +90,20 @@ namespace RumahMakanPadangAuth.api.Auth
         }
 
         /// <summary>
+        /// Register
+        /// </summary>
+        /// <param name="user">Model of user login object.</param>
+        /// <response code="200">Request successful.</response>
+        /// <response code="400">Request failed because of an exception.</response>
+        [ProducesResponseType(typeof(UserInfoTokenDTO), 200)]
+        [HttpGet]
+        [Route("Register")]
+        public IActionResult RegisterAsync()
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
         /// Login
         /// </summary>
         /// <response code="200">Request successful.</response>
@@ -98,27 +114,11 @@ namespace RumahMakanPadangAuth.api.Auth
         {
             try
             {
-                var result = await HttpContext.AuthenticateAsync(IdentityServerConstants.ExternalCookieAuthenticationScheme);
-                if (result?.Succeeded != true)
-                {
-                    throw new Exception("External authentication error");
-                }
+                AuthenticateResult authResult = await HttpContext.AuthenticateAsync(IdentityServerConstants.ExternalCookieAuthenticationScheme);
 
-                // retrieve claims of the external user
-                var externalUser = result.Principal;
-                if (externalUser == null)
-                {
-                    throw new Exception("External authentication error");
-                }
+                User user = await _authService.AuthWithGoogleAsync(authResult);
 
-                // retrieve claims of the external user
-                var claims = externalUser.Claims.ToList();
-
-                var email = claims.FirstOrDefault(x => x.Type == ClaimTypes.Email)?.Value;
-
-                TokenResponse userToken = await _authService.LoginAsync(email, "password");
-
-                User user = await _authService.GetUserAsync(email);
+                TokenResponse userToken = await _authService.LoginAsync(user.Email, "password", true);
 
                 UserInfoTokenDTO userInfoDto = _mapper.Map<User, UserInfoTokenDTO>(user);
 
@@ -129,7 +129,8 @@ namespace RumahMakanPadangAuth.api.Auth
             }
             catch (Exception e)
             {
-                return new BadRequestObjectResult(e);
+                _logger.LogError(e.ToString());
+                throw e;
             }
         }
 

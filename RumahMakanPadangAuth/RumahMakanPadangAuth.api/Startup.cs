@@ -15,7 +15,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
 using RumahMakanPadangAuth.bll;
 using RumahMakanPadangAuth.dal;
+using RumahMakanPadangAuth.dal.Config;
 using RumahMakanPadangAuth.dal.Repositories;
+using RumahMakanPadangAuth.external;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -30,22 +32,23 @@ namespace RumahMakanPadangAuth.api
     {
         public Startup(IConfiguration configuration)
         {
-            Configuration = configuration;
+            _config = configuration;
         }
 
-        public IConfiguration Configuration { get; }
+        public IConfiguration _config { get; }
 
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+
             //install certificate to avoid missing keyset
-            X509Certificate2 cert = new X509Certificate2("example.pfx", Configuration.GetValue<string>("Certificate:Password"));
+            X509Certificate2 cert = new X509Certificate2("example.pfx", _config.GetValue<string>("Certificate:Password"));
             string migrationsAssembly = "RumahMakanPadangAuth.dal";
 
             services.AddIdentityServer(options =>
             {
                 options.Authentication.CookieAuthenticationScheme = "none";
-                options.IssuerUri = Configuration.GetValue<string>("AuthorizationServer:Address");
+                options.IssuerUri = _config.GetValue<string>("AuthorizationServer:Address");
             })
             .AddSigningCredential(cert)
             .AddResourceOwnerValidator<ResourceOwnerPasswordValidatorService>()
@@ -54,20 +57,19 @@ namespace RumahMakanPadangAuth.api
             {
                 options.ConfigureDbContext = builder =>
                     builder.UseSqlServer(
-                        Configuration.GetConnectionString("DefaultConnection"),
+                        _config.GetConnectionString("DefaultConnection"),
                         sql => sql.MigrationsAssembly(migrationsAssembly));
             })
             .AddOperationalStore(options =>
             {
                 options.ConfigureDbContext = builder =>
                     builder.UseSqlServer(
-                        Configuration.GetConnectionString("DefaultConnection"),
+                        _config.GetConnectionString("DefaultConnection"),
                         sql => sql.MigrationsAssembly(migrationsAssembly));
                 options.EnableTokenCleanup = true;
                 options.TokenCleanupInterval = 3600;
             })
             .AddPersistedGrantStore<PersistedGrantStore>();
-
 
             services.AddAuthentication(options =>
             {
@@ -77,8 +79,8 @@ namespace RumahMakanPadangAuth.api
             })
             .AddJwtBearer(options =>
             {
-                options.Authority = Configuration.GetValue<string>("AuthorizationServer:Address");
-                options.Audience = Configuration.GetValue<string>("Service:Name");
+                options.Authority = _config.GetValue<string>("AuthorizationServer:Address");
+                options.Audience = _config.GetValue<string>("Service:Name");
                 options.RequireHttpsMetadata = false;
             })
             .AddCookie("none")
@@ -86,16 +88,14 @@ namespace RumahMakanPadangAuth.api
             {
                 options.SignInScheme = IdentityServerConstants.ExternalCookieAuthenticationScheme;
                 options.SaveTokens = true;
-                options.ClientId = "679400509968-dusc9gib5lf95il2veg2doaqh0joc3v4.apps.googleusercontent.com";
-                options.ClientSecret = "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";
-            });
+                options.ClientId = "746817459487-dagpmu8ck4k2msndhkt91sts9r9m4iq0.apps.googleusercontent.com";
+                options.ClientSecret = "cXQCIt4m5Eos19YxXPTR7C3S";
+            })
+            ;
 
-
+            services.AddHttpContextAccessor();
             services.AddControllers();
-            services.AddDbContext<RumahMakanPadangAuthDbContext>(options =>
-              options
-                .UseSqlServer(Configuration.GetConnectionString("DefaultConnection"))
-            );
+            services.AddMvc();
 
             services.AddCors(options =>
             {
@@ -109,7 +109,7 @@ namespace RumahMakanPadangAuth.api
 
             services.AddDbContextPool<RumahMakanPadangAuthDbContext>(options =>
             {
-                options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection"), x =>
+                options.UseSqlServer(_config.GetConnectionString("DefaultConnection"), x =>
                 {
                     x.CommandTimeout((int)TimeSpan.FromMinutes(10).TotalSeconds);
                     x.EnableRetryOnFailure(maxRetryCount: 10, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null);
@@ -119,27 +119,37 @@ namespace RumahMakanPadangAuth.api
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             services.AddScoped<IUserAuthorizationService, UserAuthorizationService>();
             services.AddSingleton<IAuthorizationHandler, UserAuthorizationHandler>();
+            services.AddSingleton<GoogleApi>();
+            services.AddScoped<IdentityServerApi>();
 
-            // Register the Swagger generator, defining 1 or more Swagger documents
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new OpenApiInfo
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "Rumah Makan Padang Auth API", Version = "v1" });
+                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
-                    Version = "v1",
-                    Title = "Rumah Makan Padang Auth API",
-                    Description = "Login ke warung makan padang dengan API",
-                    Contact = new OpenApiContact
-                    {
-                        Name = "Bimo",
-                        Email = string.Empty,
-                        Url = new Uri("https://github.com/bimoimans"),
-                    }
+                    Description = @"JWT Authorization header using the Bearer scheme.
+                      Enter 'Bearer' [space] and then your token in the text input below.
+                      Example: 'Bearer 12345abcdef'",
+                    Name = "Authorization",
+                    In = ParameterLocation.Header,
+                    Type = SecuritySchemeType.ApiKey,
+                    Scheme = "Bearer"
                 });
 
-                // Set the comments path for the Swagger JSON and UI.
-                var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-                c.IncludeXmlComments(xmlPath);
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement(){
+                {
+                    new OpenApiSecurityScheme{
+                        Reference = new OpenApiReference{
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                            },
+                        Scheme = "oauth2",
+                        Name = "Bearer",
+                        In = ParameterLocation.Header,
+                        },
+                        new List<string>()
+                        }
+                });
             });
         }
 
@@ -151,20 +161,7 @@ namespace RumahMakanPadangAuth.api
                 app.UseDeveloperExceptionPage();
             }
 
-            app.UseHttpsRedirection();
-
-            // Enable middleware to serve generated Swagger as a JSON endpoint.
-            app.UseSwagger();
-
-            // Enable middleware to serve swagger-ui (HTML, JS, CSS, etc.)
-            app.UseSwaggerUI(c =>
-            {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "Rumah Makan Padang Auth API");
-                c.RoutePrefix = string.Empty;
-            });
-
             app.UseRouting();
-
             app.UseCors("CorsPolicy");
             app.UseCookiePolicy(new CookiePolicyOptions
             {
@@ -173,15 +170,18 @@ namespace RumahMakanPadangAuth.api
             app.UseAuthentication();
             app.UseAuthorization();
             app.UseIdentityServer();
-
-            app.UseAuthorization();
-
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
             });
+            app.UseSwagger();
+            app.UseSwaggerUI(c =>
+            {
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "Sample v1");
+            });
 
-
+            //initialize identity server, firsttime only after creating migration for ConfigurationDb & PersistedGrantDb
+            InitConfig.InitializeDatabase(app);
         }
     }
 }

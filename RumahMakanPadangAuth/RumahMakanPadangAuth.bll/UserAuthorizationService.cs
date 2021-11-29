@@ -1,10 +1,15 @@
-﻿using IdentityModel.Client;
+﻿using AutoMapper;
+using IdentityModel.Client;
 using IdentityServer4.Models;
 using IdentityServer4.Stores;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using RumahMakanPadangAuth.dal.Models;
 using RumahMakanPadangAuth.dal.Repositories;
+using RumahMakanPadangAuth.external;
+using RumahMakanPadangAuth.external.DTOs;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,67 +22,38 @@ namespace RumahMakanPadangAuth.bll
 {
     public class UserAuthorizationService : IUserAuthorizationService
     {
-        private readonly IConfiguration _config;
-        private readonly IClientStore _clientStore;
         private readonly ClaimsPrincipal _userPrincipal;
         private readonly IUnitOfWork _unitOfWork;
-        private readonly HttpClient _httpClient;
+        private readonly IMapper _mapper;
+        private readonly IdentityServerApi _identityServerApi;
+        private readonly GoogleApi _googleApi;
 
 
-        public UserAuthorizationService(IConfiguration config, IHttpContextAccessor httpContextAccessor,
-            IClientStore clientStore, IUnitOfWork unitOfWork, IHttpClientFactory httpClientFactory)
+        public UserAuthorizationService(IHttpContextAccessor httpContextAccessor, IUnitOfWork unitOfWork, IdentityServerApi identityServerApi, GoogleApi googleApi)
         {
-            _config = config;
-            _clientStore = clientStore;
             _unitOfWork = unitOfWork;
             _userPrincipal = httpContextAccessor?.HttpContext?.User;
-            _httpClient = httpClientFactory.CreateClient();
+            _identityServerApi = identityServerApi;
+            _googleApi = googleApi;
+
+            MapperConfiguration configMapper = new MapperConfiguration(m =>
+            {
+                m.CreateMap<GoogleUserInfoDto, User>()
+                .ForMember(x => x.UserName, y => y.MapFrom(z => z.email))
+                .ForMember(x => x.Firstname, y => y.MapFrom(z => z.given_name))
+                .ForMember(x => x.LastName, y => y.MapFrom(z => z.family_name))
+                .ForMember(x => x.Email, y => y.MapFrom(z => z.email));
+            });
+
+            _mapper = configMapper.CreateMapper();
         }
 
-        public async Task<User> GetUserAsync(string userName)
-        {
-            User user = await _unitOfWork.UserRepository.GetSingleAsync(u => u.UserName.Equals(userName));
-            return user;
-        }
 
-        public async Task<TokenResponse> LoginAsync(string userName, string password, bool bypassPassword = true)
+        public async Task<TokenResponse> LoginAsync(string userName, string password, bool bypassPassword = false)
         {
             try
             {
-                DiscoveryDocumentRequest discoReq = new DiscoveryDocumentRequest()
-                {
-                    Address = _config.GetValue<string>("AuthorizationServer:Address"),
-                    Policy = new DiscoveryPolicy()
-                    {
-                        RequireHttps = false,
-                        ValidateEndpoints = false,
-                        ValidateIssuerName = false
-                    }
-                };
-
-                DiscoveryDocumentResponse discoveryDocument = await _httpClient.GetDiscoveryDocumentAsync(discoReq);
-
-
-                Client client = await _clientStore.FindEnabledClientByIdAsync(_config.GetValue<string>("Service:ClientId"));
-
-                PasswordTokenRequest passwordTokenRequest = new PasswordTokenRequest()
-                {
-
-                    Address = discoveryDocument.TokenEndpoint,
-                    ClientId = _config.GetValue<string>("Service:ClientId"),
-                    ClientSecret = _config.GetValue<string>("Service:ClientSecret"),
-                    GrantType = GrantTypes.ResourceOwnerPassword.First(),
-                    Scope = client.AllowedScopes.Aggregate((p, n) => p + " " + n),
-                    UserName = userName,
-                    Password = password
-                };
-                if (bypassPassword)
-                {
-                    passwordTokenRequest.Parameters.Add("bypassPassword", "true");
-                }
-
-
-                TokenResponse tokenResponse = await _httpClient.RequestPasswordTokenAsync(passwordTokenRequest);
+                var tokenResponse = await _identityServerApi.AuthWithIdentityServer(userName, password, bypassPassword);
 
                 if (tokenResponse.IsError)
                 {
@@ -88,9 +64,49 @@ namespace RumahMakanPadangAuth.bll
             }
             catch (Exception e)
             {
-                throw new Exception(e.ToString());
+                throw e;
             }
 
+        }
+
+
+        public async Task<User> AuthWithGoogleAsync(AuthenticateResult authResult)
+        {
+            if (authResult?.Succeeded != true)
+            {
+                throw new Exception("External authentication error");
+            }
+
+            var externalUser = authResult.Principal;
+            if (externalUser == null)
+            {
+                throw new Exception("External authentication error");
+            }
+
+            var tokenType = authResult.Properties.Items[".Token.token_type"];
+            var accessToken = authResult.Properties.Items[".Token.access_token"];
+
+            var resultDto = await _googleApi.AuthWithGoogleAsync(tokenType, accessToken);
+
+            var user = await _unitOfWork.UserRepository.GetAll().FirstOrDefaultAsync(x => x.Email == resultDto.email);
+
+            if (user != null)
+            {
+                return user;
+            }
+
+            user = _mapper.Map<User>(resultDto);
+
+            await _unitOfWork.UserRepository.AddAsync(user);
+            await _unitOfWork.SaveAsync();
+
+            return user;
+        }
+
+        public async Task<User> GetUserAsync(string userName)
+        {
+            User user = await _unitOfWork.UserRepository.GetSingleAsync(u => u.UserName.Equals(userName));
+            return user;
         }
 
         public Guid GetUserId()
@@ -115,16 +131,6 @@ namespace RumahMakanPadangAuth.bll
         {
             List<string> userName = _userPrincipal.Claims.Where(i => i.Type == ClaimTypes.Role).Select(r => r.Value).ToList();
             return userName;
-        }
-
-        Task<TokenResponse> IUserAuthorizationService.LoginAsync(string userName, string password, bool autopassword)
-        {
-            throw new NotImplementedException();
-        }
-
-        Task<User> IUserAuthorizationService.GetUserAsync(string userName)
-        {
-            throw new NotImplementedException();
         }
     }
 }

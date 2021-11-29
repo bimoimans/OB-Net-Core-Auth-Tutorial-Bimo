@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RumahMakanPadangAuth.dal", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RumahMakanPadangAuth.bll", "RumahMakanPadangAuth.bll\RumahMakanPadangAuth.bll.csproj", "{AB0616EC-5E9B-44DC-93D7-761FAED682CB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "External", "External\External.csproj", "{7966E71B-77E9-45DE-B8D1-71603DD13B88}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RumahMakanPadangAuth.external", "RumahMakanPadangAuth.external\RumahMakanPadangAuth.external.csproj", "{FE0C3462-3FC1-463C-BAEB-27CC9EB0CC40}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -29,10 +29,10 @@ Global
 		{AB0616EC-5E9B-44DC-93D7-761FAED682CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AB0616EC-5E9B-44DC-93D7-761FAED682CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AB0616EC-5E9B-44DC-93D7-761FAED682CB}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7966E71B-77E9-45DE-B8D1-71603DD13B88}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7966E71B-77E9-45DE-B8D1-71603DD13B88}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7966E71B-77E9-45DE-B8D1-71603DD13B88}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7966E71B-77E9-45DE-B8D1-71603DD13B88}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FE0C3462-3FC1-463C-BAEB-27CC9EB0CC40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FE0C3462-3FC1-463C-BAEB-27CC9EB0CC40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FE0C3462-3FC1-463C-BAEB-27CC9EB0CC40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FE0C3462-3FC1-463C-BAEB-27CC9EB0CC40}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
